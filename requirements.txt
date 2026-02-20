@@ -1,0 +1,12 @@
+python-dotenv
+pandas==2.1.4
+numpy==1.26.4
+torch==2.2.2
+transformers==4.37.2
+sentence-transformers==2.2.2
+keybert==0.8.4
+vaderSentiment==3.3.2
+google-api-python-client
+feedparser
+requests
+streamlit
