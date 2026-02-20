@@ -115,36 +115,62 @@ def harvest_reddit() -> List[Dict[str, Any]]:
     """
     Search Reddit site-wide via JSON endpoint.
     """
+    import time
+
     results = []
-    # Site-wide search with specific OR query, sorted by new, limit 25
-    url = 'https://www.reddit.com/search.json?q="Leap Scholar"+OR+"LeapScholar"+OR+"Leap Finance"&sort=new&limit=25'
-    
+
+    url = (
+        'https://www.reddit.com/search.json'
+        '?q="Leap Scholar"+OR+"LeapScholar"+OR+"Leap Finance"'
+        '&sort=new&limit=25'
+    )
+
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'
+        # Reddit prefers identifiable User-Agent strings
+        "User-Agent": "python:LeapPulseBrandMonitor:v1.0 (by /u/yourusername)"
     }
 
     try:
-        resp = requests.get(url, headers=headers, timeout=5)
-        if resp.status_code != 200:
+        # Small delay to reduce rate-limiting risk on cloud IP
+        time.sleep(1)
+
+        resp = requests.get(url, headers=headers, timeout=8)
+
+        if resp.status_code == 429:
+            print("Reddit rate limited (429)")
             return []
-            
+
+        if resp.status_code == 403:
+            print("Reddit forbidden (403)")
+            return []
+
+        if resp.status_code != 200:
+            print(f"Reddit unexpected status: {resp.status_code}")
+            return []
+
         data = resp.json()
         children = data.get("data", {}).get("children", [])
-        
+
         for post in children:
             try:
                 post_data = post.get("data", {})
+
                 title = post_data.get("title", "")
                 selftext = post_data.get("selftext", "")
                 permalink = post_data.get("permalink", "")
                 created_utc = post_data.get("created_utc", 0)
-                
+
                 post_url = f"https://www.reddit.com{permalink}"
-                timestamp = datetime.datetime.fromtimestamp(created_utc).isoformat()
-                
+
+                timestamp = ""
+                if created_utc:
+                    timestamp = datetime.datetime.fromtimestamp(
+                        created_utc
+                    ).isoformat()
+
                 full_text = selftext
-                
-                # Strict Filter: check if title or text contains brand
+
+                # Strict relevance filter
                 if not (_is_relevant(title) or _is_relevant(full_text)):
                     continue
 
@@ -157,14 +183,16 @@ def harvest_reddit() -> List[Dict[str, Any]]:
                     "keyword": "LeapScholar",
                     "matched": True
                 })
-            except Exception:
+
+            except Exception as e:
+                print(f"Error parsing Reddit post: {e}")
                 continue
-                
-    except Exception:
+
+    except Exception as e:
+        print(f"Reddit request failed: {e}")
         return []
 
     return results
-
 def harvest_google_news() -> List[Dict[str, Any]]:
     """
     Fetch Google News RSS for brand term.
